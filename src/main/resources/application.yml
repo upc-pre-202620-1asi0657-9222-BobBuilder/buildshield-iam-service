@@ -40,6 +40,8 @@ spring:
         default.api.timeout.ms: 10000
 
 server:
+  # Detrás del gateway: Swagger "Try it out" usa el host del gateway (X-Forwarded-*).
+  forward-headers-strategy: framework
   port: ${SERVER_PORT:8081}
 
 management:
