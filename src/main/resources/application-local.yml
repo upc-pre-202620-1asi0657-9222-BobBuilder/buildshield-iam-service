@@ -1,0 +1,6 @@
+# Perfil local: PostgreSQL del clúster local (127.0.0.1:5433, trust) o del docker-compose de
+# buildshield-platform, y Kafka de desarrollo (dev-kafka) en localhost:9092.
+# Las claves JWT llegan por variables de entorno (scripts/run-all.ps1 de buildshield-platform las genera).
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5433}/${DB_NAME:iam_db}

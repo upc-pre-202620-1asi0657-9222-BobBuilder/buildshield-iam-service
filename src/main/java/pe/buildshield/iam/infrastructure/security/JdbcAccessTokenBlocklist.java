@@ -1,0 +1,78 @@
+package pe.buildshield.iam.infrastructure.security;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import pe.buildshield.iam.shared.security.RevokedTokenStore;
+import pe.buildshield.iam.domain.model.TokenRepositories.AccessTokenBlocklist;
+
+import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Lista de revocación de tokens de acceso (tabla revoked_access_tokens). La consulta el
+ * {@code JwtAuthenticationFilter} del kernel compartido en cada petición, por eso usa JDBC directo y una sola
+ * consulta por clave primaria.
+ */
+@Component
+class JdbcAccessTokenBlocklist implements RevokedTokenStore, AccessTokenBlocklist {
+
+    private static final Logger log = LoggerFactory.getLogger(JdbcAccessTokenBlocklist.class);
+
+    private final JdbcTemplate jdbc;
+    private final Clock clock;
+
+    JdbcAccessTokenBlocklist(JdbcTemplate jdbc, Clock clock) {
+        this.jdbc = jdbc;
+        this.clock = clock;
+    }
+
+    @Override
+    public boolean isRevoked(String tokenId) {
+        if (tokenId == null) {
+            return false;
+        }
+        Boolean revoked = jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM revoked_access_tokens WHERE jti = ? AND expires_at > ?)",
+                Boolean.class, tokenId, Timestamp.from(clock.instant()));
+        return Boolean.TRUE.equals(revoked);
+    }
+
+    /**
+     * US04: un usuario desactivado, o con otro rol que el del token, ya no usa los tokens de acceso que
+     * tenía (vigentes hasta 15 minutos). Una consulta por clave primaria.
+     */
+    @Override
+    public boolean isUserBlocked(UUID userId, String role) {
+        if (userId == null) {
+            return false;
+        }
+        Boolean blocked = jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND (NOT active OR role <> ?))",
+                Boolean.class, userId, role == null ? "" : role);
+        return Boolean.TRUE.equals(blocked);
+    }
+
+    @Override
+    public void block(String tokenId, Instant until) {
+        jdbc.update("""
+                        INSERT INTO revoked_access_tokens (jti, expires_at) VALUES (?, ?)
+                        ON CONFLICT (jti) DO UPDATE SET expires_at = GREATEST(revoked_access_tokens.expires_at, EXCLUDED.expires_at)
+                        """, tokenId, Timestamp.from(until));
+    }
+
+    /** Un token vencido ya no pasa la validación de vigencia: no hace falta recordarlo. */
+    @Scheduled(fixedDelayString = "${buildshield.iam.revoked-token-purge-interval:PT1H}")
+    int purgeExpired() {
+        int deleted = jdbc.update("DELETE FROM revoked_access_tokens WHERE expires_at <= ?",
+                Timestamp.from(clock.instant()));
+        if (deleted > 0) {
+            log.info("Se borraron {} tokens de acceso revocados ya vencidos", deleted);
+        }
+        return deleted;
+    }
+}

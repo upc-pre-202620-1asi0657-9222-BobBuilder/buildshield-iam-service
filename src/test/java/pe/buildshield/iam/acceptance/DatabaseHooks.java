@@ -1,0 +1,29 @@
+package pe.buildshield.iam.acceptance;
+
+import io.cucumber.java.Before;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import pe.buildshield.iam.acceptance.CucumberSpringConfiguration.CapturingEmailPort;
+import pe.buildshield.iam.support.MutableClock;
+
+import java.time.Instant;
+
+/** Antes de cada escenario: base vacía (tablas del servicio), sin correos capturados y reloj en la hora actual. */
+public class DatabaseHooks {
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @Autowired
+    MutableClock clock;
+
+    @Autowired
+    CapturingEmailPort emails;
+
+    @Before(order = 0)
+    public void resetState() {
+        pe.buildshield.iam.support.TestDatabase.reset(jdbc);
+        emails.clear();
+        clock.setTo(Instant.now());
+    }
+}
