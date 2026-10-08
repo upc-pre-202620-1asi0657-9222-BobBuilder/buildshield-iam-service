@@ -1,16 +1,13 @@
 package pe.buildshield.iam.architecture;
 
 import com.tngtech.archunit.lang.ArchRule;
-import com.tngtech.archunit.lang.CompositeArchRule;
 
-import java.util.List;
-
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 
 /**
- * Reglas de arquitectura del monolito modular, parametrizadas por paquete raíz
- * para poder probarlas también contra clases de ejemplo.
+ * Reglas de arquitectura del microservicio, parametrizadas por paquete raíz para poder probarlas
+ * también contra clases de ejemplo.
  */
 final class ArchitectureRules {
 
@@ -18,22 +15,34 @@ final class ArchitectureRules {
     }
 
     /**
-     * Las capas internas de cada módulo (interfaces, application, domain, infrastructure)
-     * solo pueden ser usadas desde el mismo módulo. Otros módulos únicamente ven la
-     * fachada: las clases del paquete raíz del módulo.
+     * Capas DDD del servicio: interfaces (REST) y infrastructure (persistencia, Kafka, adaptadores) usan
+     * application y domain; application solo usa domain; domain no usa ninguna otra capa.
      */
-    static ArchRule moduleInternalsOnlyAccessedFromSameModule(String rootPackage, List<String> modules) {
-        CompositeArchRule rule = null;
-        for (String module : modules) {
-            String modulePackage = rootPackage + "." + module;
-            ArchRule moduleRule = classes()
-                    .that().resideInAPackage(modulePackage + ".(*)..")
-                    .should().onlyBeAccessed().byAnyPackage(modulePackage + "..")
-                    .allowEmptyShould(true)
-                    .because("el módulo '" + module + "' solo expone su fachada (paquete " + modulePackage + ")");
-            rule = rule == null ? CompositeArchRule.of(moduleRule) : rule.and(moduleRule);
-        }
-        return rule;
+    static ArchRule layersAreRespected(String rootPackage) {
+        return layeredArchitecture()
+                .consideringOnlyDependenciesInLayers()
+                .withOptionalLayers(true)
+                .layer("Interfaces").definedBy(rootPackage + "..interfaces..")
+                .layer("Application").definedBy(rootPackage + "..application..")
+                .layer("Domain").definedBy(rootPackage + "..domain..")
+                .layer("Infrastructure").definedBy(rootPackage + "..infrastructure..")
+                .whereLayer("Interfaces").mayNotBeAccessedByAnyLayer()
+                .whereLayer("Infrastructure").mayNotBeAccessedByAnyLayer()
+                .whereLayer("Application").mayOnlyBeAccessedByLayers("Interfaces", "Infrastructure")
+                .whereLayer("Domain").mayOnlyBeAccessedByLayers("Application", "Interfaces", "Infrastructure")
+                .because("las capas internas no dependen de las externas");
+    }
+
+    /** El kernel compartido es igual en todos los servicios: no depende de las capas del servicio. */
+    static ArchRule sharedKernelIsIndependent(String rootPackage) {
+        return noClasses()
+                .that().resideInAPackage(rootPackage + ".shared..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        rootPackage + ".interfaces..",
+                        rootPackage + ".application..",
+                        rootPackage + ".domain..",
+                        rootPackage + ".infrastructure..")
+                .because("el kernel compartido se copia sin cambios entre servicios");
     }
 
     /** El dominio es Java puro: no depende de Spring, JPA ni Hibernate. */

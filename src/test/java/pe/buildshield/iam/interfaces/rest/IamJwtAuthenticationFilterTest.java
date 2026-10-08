@@ -12,7 +12,7 @@ import pe.buildshield.iam.shared.security.RevokedTokenStore;
 import pe.buildshield.iam.shared.tenant.TenantInfo;
 import pe.buildshield.iam.application.AuthenticationService;
 import pe.buildshield.iam.application.PasswordResetService;
-import pe.buildshield.iam.application.SignUpService;
+import pe.buildshield.iam.application.IamCommandService;
 import pe.buildshield.iam.support.WebSliceTest;
 
 import java.time.Clock;
@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(AuthController.class)
 @WebSliceTest
-class JwtAuthenticationFilterTest {
+class IamJwtAuthenticationFilterTest {
 
     private static final TenantInfo ANA = new TenantInfo(UUID.randomUUID(), UUID.randomUUID(), "ADMINISTRATOR");
 
@@ -54,7 +54,7 @@ class JwtAuthenticationFilterTest {
     AuthenticationService authenticationService;
 
     @MockitoBean
-    SignUpService signUpService;
+    IamCommandService commandService;
 
     @MockitoBean
     PasswordResetService passwordResetService;

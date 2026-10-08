@@ -10,34 +10,23 @@ import com.tngtech.archunit.lang.EvaluationResult;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@AnalyzeClasses(packages = ModuleBoundariesTest.CORE_PACKAGE, importOptions = ImportOption.DoNotIncludeTests.class)
+@AnalyzeClasses(packages = ModuleBoundariesTest.SERVICE_PACKAGE, importOptions = ImportOption.DoNotIncludeTests.class)
 class ModuleBoundariesTest {
 
-    static final String CORE_PACKAGE = "pe.buildshield.core";
-
-    static final List<String> MODULES = List.of(
-            "iam", "organization", "inventory", "ordering",
-            "dispatch", "reception", "subscription", "notification", "audit");
+    static final String SERVICE_PACKAGE = "pe.buildshield.iam";
 
     @ArchTest
-    static final ArchRule modules_only_expose_their_facade =
-            ArchitectureRules.moduleInternalsOnlyAccessedFromSameModule(CORE_PACKAGE, MODULES);
+    static final ArchRule layers_are_respected = ArchitectureRules.layersAreRespected(SERVICE_PACKAGE);
 
     @ArchTest
     static final ArchRule domain_does_not_depend_on_spring_or_jpa =
-            ArchitectureRules.domainIsFrameworkFree(CORE_PACKAGE);
+            ArchitectureRules.domainIsFrameworkFree(SERVICE_PACKAGE);
 
-    /** El kernel compartido lo usan todos los módulos, así que no puede depender de ninguno. */
     @ArchTest
-    static final ArchRule shared_kernel_does_not_depend_on_modules = noClasses()
-            .that().resideInAPackage(CORE_PACKAGE + ".shared..")
-            .should().dependOnClassesThat().resideInAnyPackage(MODULES.stream()
-                    .map(module -> CORE_PACKAGE + "." + module + "..").toArray(String[]::new));
+    static final ArchRule shared_kernel_does_not_depend_on_the_service =
+            ArchitectureRules.sharedKernelIsIndependent(SERVICE_PACKAGE);
 
     /**
      * Comprueba que las reglas detectan violaciones reales usando clases de ejemplo,
@@ -51,15 +40,12 @@ class ModuleBoundariesTest {
         private final JavaClasses fixtures = new ClassFileImporter().importPackages(FIXTURES);
 
         @Test
-        void detects_a_module_using_another_modules_repository() {
-            EvaluationResult result = ArchitectureRules
-                    .moduleInternalsOnlyAccessedFromSameModule(FIXTURES, List.of("alpha", "beta"))
-                    .evaluate(fixtures);
+        void detects_application_using_infrastructure() {
+            EvaluationResult result = ArchitectureRules.layersAreRespected(FIXTURES).evaluate(fixtures);
 
             assertThat(result.hasViolation()).isTrue();
             assertThat(result.getFailureReport().getDetails())
-                    .anyMatch(line -> line.contains("BetaService") && line.contains("AlphaRepository"))
-                    .noneMatch(line -> line.contains("AlphaFacade"));
+                    .anyMatch(line -> line.contains("BetaService") && line.contains("AlphaRepository"));
         }
 
         @Test
