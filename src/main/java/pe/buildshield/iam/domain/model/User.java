@@ -13,7 +13,7 @@ import java.util.UUID;
  */
 public class User {
 
-    static final int MAX_FULL_NAME = 150;
+    static final int MAX_FULL_NAME = 120;
 
     private final UUID id;
     private final UUID organizationId;
@@ -38,8 +38,8 @@ public class User {
 
     public static User register(UUID organizationId, EmailAddress email, String fullName, Role role, String passwordHash) {
         if (fullName == null || fullName.isBlank() || fullName.trim().length() > MAX_FULL_NAME) {
-            throw new ValidationException("INVALID_FULL_NAME", "El nombre es obligatorio (máximo 150 caracteres)",
-                    List.of(new ErrorDetail("fullName", "obligatorio, máximo 150 caracteres")));
+            throw new ValidationException("INVALID_FULL_NAME", "El nombre es obligatorio (máximo 120 caracteres)",
+                    List.of(new ErrorDetail("fullName", "obligatorio, máximo 120 caracteres")));
         }
         return new User(null, organizationId, email, fullName.trim(), role, passwordHash, true, null);
     }

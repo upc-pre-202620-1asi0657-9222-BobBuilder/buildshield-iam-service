@@ -107,29 +107,28 @@ class IamMessagingIT {
         UUID activated = UUID.randomUUID();
         kafka.send(Topics.SUBSCRIPTION, organizationId.toString(), subscriptionEvent(activated,
                 "SubscriptionActivated", organizationId, "PLUS", "ACTIVE", "2026-12-31T00:00:00Z"));
-        await().atMost(Duration.ofSeconds(20)).until(() -> "ACTIVE".equals(accessStatus(organizationId)));
-        assertThat(jdbc.queryForObject("SELECT plan FROM organization_access WHERE organization_id = ?",
-                String.class, organizationId)).isEqualTo("PLUS");
+        await().atMost(Duration.ofSeconds(20)).until(() -> processed(activated));
+        assertThat(accessStatus(organizationId)).isEqualTo("FULL");
 
         UUID expired = UUID.randomUUID();
         String expiredEvent = subscriptionEvent(expired, "SubscriptionExpired", organizationId, "PLUS", "EXPIRED",
                 "2026-12-31");
         kafka.send(Topics.SUBSCRIPTION, organizationId.toString(), expiredEvent);
-        await().atMost(Duration.ofSeconds(20)).until(() -> "EXPIRED".equals(accessStatus(organizationId)));
+        await().atMost(Duration.ofSeconds(20)).until(() -> "READ_ONLY".equals(accessStatus(organizationId)));
 
         // Reentrega del mismo evento después de reactivar a mano: no se vuelve a aplicar.
-        jdbc.update("UPDATE organization_access SET status = 'ACTIVE' WHERE organization_id = ?", organizationId);
+        jdbc.update("UPDATE organization_access SET access_mode = 'FULL' WHERE organization_id = ?", organizationId);
         kafka.send(Topics.SUBSCRIPTION, organizationId.toString(), expiredEvent);
         UUID marker = UUID.randomUUID();
         kafka.send(Topics.SUBSCRIPTION, organizationId.toString(), subscriptionEvent(marker, "PlanChanged",
                 organizationId, "PRO", "ACTIVE", null));
         await().atMost(Duration.ofSeconds(20)).until(() -> processed(marker));
-        assertThat(accessStatus(organizationId)).isEqualTo("ACTIVE");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM processed_events WHERE event_id = ?", Long.class,
-                expired)).isEqualTo(1);
+        assertThat(accessStatus(organizationId)).isEqualTo("FULL");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM processed_events WHERE event_id = ? AND consumer = ?",
+                Long.class, expired, SubscriptionEventConsumer.CONSUMER)).isEqualTo(1);
 
         // Vencida, la cuenta queda en solo lectura para crear usuarios.
-        jdbc.update("UPDATE organization_access SET status = 'EXPIRED' WHERE organization_id = ?", organizationId);
+        jdbc.update("UPDATE organization_access SET access_mode = 'READ_ONLY' WHERE organization_id = ?", organizationId);
         TenantInfo admin = new TenantInfo(organizationId, result.administratorId(), "ADMINISTRATOR");
         assertThatThrownBy(() -> TenantContext.runAs(admin, () -> commands.createUser(
                 new IamCommandService.CreateUserCommand("Rosa", "rosa@andina.pe", "WAREHOUSE_MANAGER", "Almacen123"))))
@@ -138,7 +137,7 @@ class IamMessagingIT {
     }
 
     private String accessStatus(UUID organizationId) {
-        return jdbc.queryForList("SELECT status FROM organization_access WHERE organization_id = ?", String.class,
+        return jdbc.queryForList("SELECT access_mode FROM organization_access WHERE organization_id = ?", String.class,
                 organizationId).stream().findFirst().orElse(null);
     }
 

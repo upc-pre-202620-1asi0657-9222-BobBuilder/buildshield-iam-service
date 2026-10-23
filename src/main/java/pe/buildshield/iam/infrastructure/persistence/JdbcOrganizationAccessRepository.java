@@ -24,21 +24,19 @@ class JdbcOrganizationAccessRepository implements OrganizationAccessRepository {
 
     @Override
     public Optional<OrganizationAccess> find(UUID organizationId) {
-        return jdbc.query("SELECT organization_id, plan, status, valid_until FROM organization_access WHERE organization_id = ?",
-                (rs, row) -> new OrganizationAccess(rs.getObject("organization_id", UUID.class), rs.getString("plan"),
-                        OrganizationAccess.Status.valueOf(rs.getString("status")),
-                        rs.getTimestamp("valid_until") == null ? null : rs.getTimestamp("valid_until").toInstant()),
+        return jdbc.query("SELECT organization_id, access_mode FROM organization_access WHERE organization_id = ?",
+                (rs, row) -> new OrganizationAccess(rs.getObject("organization_id", UUID.class),
+                        OrganizationAccess.AccessMode.valueOf(rs.getString("access_mode"))),
                 organizationId).stream().findFirst();
     }
 
     @Override
     public void save(OrganizationAccess access) {
         jdbc.update("""
-                INSERT INTO organization_access (organization_id, plan, status, valid_until, updated_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT (organization_id) DO UPDATE SET plan = EXCLUDED.plan, status = EXCLUDED.status,
-                    valid_until = EXCLUDED.valid_until, updated_at = EXCLUDED.updated_at
-                """, access.organizationId(), access.plan(), access.status().name(),
-                access.validUntil() == null ? null : Timestamp.from(access.validUntil()), Timestamp.from(clock.instant()));
+                INSERT INTO organization_access (organization_id, access_mode, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT (organization_id) DO UPDATE SET access_mode = EXCLUDED.access_mode,
+                    updated_at = EXCLUDED.updated_at
+                """, access.organizationId(), access.accessMode().name(), Timestamp.from(clock.instant()));
     }
 }

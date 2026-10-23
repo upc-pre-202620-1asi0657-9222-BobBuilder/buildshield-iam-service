@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 /** Correo electrónico normalizado (sin espacios y en minúsculas). Identifica al usuario al iniciar sesión. */
 public record EmailAddress(String value) {
 
-    static final int MAX_LENGTH = 254;
+    static final int MAX_LENGTH = 120;
     private static final Pattern FORMAT = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
     public EmailAddress {

@@ -4,6 +4,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import pe.buildshield.iam.domain.model.PasswordResetToken;
 
 import java.time.Instant;
@@ -23,6 +25,7 @@ public class PasswordResetTokenJpaEntity {
     @Column(name = "organization_id", nullable = false)
     private UUID organizationId;
 
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "token_hash", nullable = false, length = 64)
     private String tokenHash;
 

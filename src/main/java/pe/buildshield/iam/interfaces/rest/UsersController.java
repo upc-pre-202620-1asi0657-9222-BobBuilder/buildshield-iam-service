@@ -109,8 +109,8 @@ class UsersController {
 
     @Schema(description = "Datos del nuevo usuario")
     record CreateUserRequest(
-            @Schema(example = "Rosa Quispe") @NotBlank @Size(max = 150) String fullName,
-            @Schema(example = "rosa@andina.pe") @NotBlank @Size(max = 254) String email,
+            @Schema(example = "Rosa Quispe") @NotBlank @Size(max = 120) String fullName,
+            @Schema(example = "rosa@andina.pe") @NotBlank @Size(max = 120) String email,
             @Schema(example = "WAREHOUSE_MANAGER", allowableValues = {"ADMINISTRATOR", "WAREHOUSE_MANAGER", "SITE_MANAGER"})
             @NotBlank String role,
             @Schema(description = "Contraseña inicial: 8 a 72 caracteres, con letra y número", example = "Almacen123")

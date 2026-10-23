@@ -49,14 +49,14 @@ class IamPersistenceIT {
 
         assertThat(jdbc.queryForObject("SELECT organization_id FROM registered_rucs WHERE ruc = '20123456789'",
                 UUID.class)).isEqualTo(result.organizationId());
-        assertThat(jdbc.queryForObject("SELECT status FROM organization_access WHERE organization_id = ?",
-                String.class, result.organizationId())).isEqualTo("TRIAL");
+        assertThat(jdbc.queryForObject("SELECT access_mode FROM organization_access WHERE organization_id = ?",
+                String.class, result.organizationId())).isEqualTo("FULL");
         assertThat(jdbc.queryForList("SELECT event_type FROM outbox_events WHERE organization_id = ? ORDER BY event_type",
                 String.class, result.organizationId())).containsExactly("OrganizationRegistered", "UserCreated");
         assertThat(jdbc.queryForObject("""
-                SELECT payload ->> 'legalName' FROM outbox_events
+                SELECT payload -> 'payload' ->> 'legalName' FROM outbox_events
                 WHERE event_type = 'OrganizationRegistered' AND aggregate_id = ?""", String.class,
-                result.organizationId().toString())).isEqualTo("Constructora 20123456789");
+                result.organizationId())).isEqualTo("Constructora 20123456789");
         assertThat(jdbc.queryForMap("SELECT organization_id, role, email, created_by FROM users WHERE id = ?",
                 result.administratorId()))
                 .containsEntry("organization_id", result.organizationId())

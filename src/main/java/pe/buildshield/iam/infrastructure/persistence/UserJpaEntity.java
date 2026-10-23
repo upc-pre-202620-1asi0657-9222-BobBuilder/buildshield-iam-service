@@ -18,17 +18,17 @@ import pe.buildshield.iam.domain.model.User;
 @Table(name = "users")
 public class UserJpaEntity extends AuditableAbstractAggregateRoot<UserJpaEntity> {
 
-    @Column(name = "email", nullable = false, length = 254)
+    @Column(name = "email", nullable = false, length = 120)
     private String email;
 
-    @Column(name = "full_name", nullable = false, length = 150)
+    @Column(name = "full_name", nullable = false, length = 120)
     private String fullName;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 30)
+    @Column(name = "role", nullable = false, length = 20)
     private Role role;
 
-    @Column(name = "password_hash", nullable = false, length = 100)
+    @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
     @Column(name = "active", nullable = false)
