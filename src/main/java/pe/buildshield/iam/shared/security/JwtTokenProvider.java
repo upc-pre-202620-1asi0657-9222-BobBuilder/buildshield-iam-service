@@ -17,14 +17,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 
-/** Emite tokens RS256 de 15 minutos. Solo el servicio que autentica (buildshield-iam-service) tiene la clave privada. */
-public class JwtTokenIssuer {
+/** JWT Token Provider del C4 (pág. 27 de la v4): emite tokens RS256 de 15 minutos. Solo el servicio que autentica (buildshield-iam-service) tiene la clave privada; los demás servicios validan con la pública. */
+public class JwtTokenProvider {
 
     private final JwtEncoder encoder;
     private final String issuer;
     private final Clock clock;
 
-    public JwtTokenIssuer(RSAPublicKey publicKey, RSAPrivateKey privateKey, String issuer, Clock clock) {
+    public JwtTokenProvider(RSAPublicKey publicKey, RSAPrivateKey privateKey, String issuer, Clock clock) {
         RSAKey key = new RSAKey.Builder(publicKey).privateKey(privateKey).build();
         this.encoder = new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(key)));
         this.issuer = issuer;

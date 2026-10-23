@@ -19,8 +19,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import pe.buildshield.iam.shared.error.ErrorResponse;
 import pe.buildshield.iam.shared.security.AuthenticatedUser;
-import pe.buildshield.iam.application.AuthenticationService;
-import pe.buildshield.iam.application.PasswordResetService;
 import pe.buildshield.iam.application.IamCommandService;
 import pe.buildshield.iam.interfaces.rest.AuthResources.PasswordResetConfirmRequest;
 import pe.buildshield.iam.interfaces.rest.AuthResources.PasswordResetRequest;
@@ -31,20 +29,16 @@ import pe.buildshield.iam.interfaces.rest.AuthResources.SignUpRequest;
 import pe.buildshield.iam.interfaces.rest.AuthResources.SignUpResponse;
 import pe.buildshield.iam.interfaces.rest.AuthResources.TokenResponse;
 
+/** Parte de IAM Controller del C4 (pág. 27 de la v4): autenticación y recuperación de contraseña. */
 @RestController
 @RequestMapping("/api/v1/auth")
 @Tag(name = "Autenticación", description = "Registro de organizaciones, sesiones y recuperación de contraseña")
 class AuthController {
 
     private final IamCommandService commands;
-    private final AuthenticationService authenticationService;
-    private final PasswordResetService passwordResetService;
 
-    AuthController(IamCommandService commands, AuthenticationService authenticationService,
-            PasswordResetService passwordResetService) {
+    AuthController(IamCommandService commands) {
         this.commands = commands;
-        this.authenticationService = authenticationService;
-        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/sign-up")
@@ -74,7 +68,7 @@ class AuthController {
     @ApiResponse(responseCode = "401", description = "Correo o contraseña incorrectos",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     TokenResponse signIn(@Valid @RequestBody SignInRequest request) {
-        return TokenResponse.from(authenticationService.signIn(request.email(), request.password()));
+        return TokenResponse.from(commands.signIn(request.email(), request.password()));
     }
 
     @PostMapping("/refresh")
@@ -87,7 +81,7 @@ class AuthController {
     @ApiResponse(responseCode = "401", description = "Token de renovación inválido, vencido o revocado",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     TokenResponse refresh(@Valid @RequestBody RefreshRequest request) {
-        return TokenResponse.from(authenticationService.refresh(request.refreshToken()));
+        return TokenResponse.from(commands.refresh(request.refreshToken()));
     }
 
     @PostMapping("/sign-out")
@@ -101,7 +95,7 @@ class AuthController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     void signOut(@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser user,
             @RequestBody(required = false) SignOutRequest request) {
-        authenticationService.signOut(user.tenant().userId(), user.tokenId(),
+        commands.signOut(user.tenant().userId(), user.tokenId(),
                 request == null ? null : request.refreshToken());
     }
 
@@ -113,7 +107,7 @@ class AuthController {
                     + "La respuesta es la misma exista o no el correo.")
     @ApiResponse(responseCode = "202", description = "Solicitud recibida")
     void requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
-        passwordResetService.requestReset(request.email());
+        commands.requestReset(request.email());
     }
 
     @PostMapping("/password-reset/confirm")
@@ -125,6 +119,6 @@ class AuthController {
     @ApiResponse(responseCode = "400", description = "Enlace inválido, vencido o ya usado, o contraseña insegura",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     void confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
-        passwordResetService.confirmReset(request.token(), request.newPassword());
+        commands.confirmReset(request.token(), request.newPassword());
     }
 }

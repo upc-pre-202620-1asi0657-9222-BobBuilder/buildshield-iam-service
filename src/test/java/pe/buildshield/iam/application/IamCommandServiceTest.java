@@ -12,6 +12,8 @@ import pe.buildshield.iam.domain.model.RegisteredRucRepository;
 import pe.buildshield.iam.domain.model.Role;
 import pe.buildshield.iam.domain.model.Ruc;
 import pe.buildshield.iam.domain.model.TokenRepositories.RefreshTokenRepository;
+import pe.buildshield.iam.domain.model.TokenRepositories.AccessTokenBlocklist;
+import pe.buildshield.iam.domain.model.TokenRepositories.PasswordResetTokenRepository;
 import pe.buildshield.iam.domain.model.User;
 import pe.buildshield.iam.domain.model.UserRepository;
 import pe.buildshield.iam.shared.error.ConflictException;
@@ -19,6 +21,7 @@ import pe.buildshield.iam.shared.error.ForbiddenException;
 import pe.buildshield.iam.shared.error.ResourceNotFoundException;
 import pe.buildshield.iam.shared.error.ValidationException;
 import pe.buildshield.iam.shared.messaging.OutboxWriter;
+import pe.buildshield.iam.shared.security.JwtTokenProvider;
 import pe.buildshield.iam.shared.tenant.MissingTenantContextException;
 import pe.buildshield.iam.shared.tenant.TenantContext;
 import pe.buildshield.iam.shared.tenant.TenantInfo;
@@ -26,6 +29,7 @@ import pe.buildshield.iam.support.TestTransactions;
 
 import java.sql.SQLException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -59,8 +63,10 @@ class IamCommandServiceTest {
     private final PasswordEncoder encoder = mock(PasswordEncoder.class);
     private final OutboxWriter outbox = mock(OutboxWriter.class);
     private final TestTransactions transactions = new TestTransactions();
-    private final IamCommandService service = new IamCommandService(users, rucs, access, refreshTokens, encoder,
-            transactions.template(), outbox, Clock.fixed(NOW, ZoneOffset.UTC));
+    private final IamCommandService service = new IamCommandService(users, rucs, access, refreshTokens,
+            mock(PasswordResetTokenRepository.class), mock(AccessTokenBlocklist.class), mock(JwtTokenProvider.class),
+            encoder, transactions.template(), outbox, Clock.fixed(NOW, ZoneOffset.UTC),
+            new IamProperties(Duration.ofDays(7), Duration.ofMinutes(30), "http://web/reset"));
 
     @AfterEach
     void clear() {
@@ -273,8 +279,8 @@ class IamCommandServiceTest {
         @Test
         void an_expired_subscription_leaves_users_read_only() {
             UUID rosa = UUID.randomUUID();
-            when(access.find(org)).thenReturn(Optional.of(new OrganizationAccess(org, "PLUS",
-                    OrganizationAccess.Status.EXPIRED, NOW.minusSeconds(60))));
+            when(access.find(org)).thenReturn(Optional.of(new OrganizationAccess(org,
+                    OrganizationAccess.AccessMode.READ_ONLY)));
             when(users.findById(rosa)).thenReturn(Optional.of(stored(rosa, Role.WAREHOUSE_MANAGER, true)));
 
             assertThatThrownBy(() -> service.createUser(
@@ -341,7 +347,7 @@ class IamCommandServiceTest {
 
         @Test
         void the_subscription_status_is_stored() {
-            OrganizationAccess active = new OrganizationAccess(org, "PRO", OrganizationAccess.Status.ACTIVE, NOW);
+            OrganizationAccess active = new OrganizationAccess(org, OrganizationAccess.AccessMode.FULL);
 
             service.applySubscriptionStatus(active);
 

@@ -4,7 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import pe.buildshield.iam.shared.security.JwtTokenIssuer;
+import pe.buildshield.iam.shared.security.JwtTokenProvider;
 import pe.buildshield.iam.shared.tenant.TenantContext;
 import pe.buildshield.iam.shared.tenant.TenantInfo;
 import pe.buildshield.iam.domain.model.AuthenticationFailedException;
@@ -13,8 +13,12 @@ import pe.buildshield.iam.domain.model.RefreshToken;
 import pe.buildshield.iam.domain.model.Role;
 import pe.buildshield.iam.domain.model.TokenRepositories.AccessTokenBlocklist;
 import pe.buildshield.iam.domain.model.TokenRepositories.RefreshTokenRepository;
+import pe.buildshield.iam.domain.model.OrganizationAccessRepository;
+import pe.buildshield.iam.domain.model.RegisteredRucRepository;
+import pe.buildshield.iam.domain.model.TokenRepositories.PasswordResetTokenRepository;
 import pe.buildshield.iam.domain.model.User;
 import pe.buildshield.iam.domain.model.UserRepository;
+import pe.buildshield.iam.shared.messaging.OutboxWriter;
 import pe.buildshield.iam.support.TestTransactions;
 
 import java.time.Clock;
@@ -38,7 +42,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class AuthenticationServiceTest {
+/** Inicio, renovación y cierre de sesión en {@link IamCommandService} (US02 y US03). */
+class IamCommandServiceSessionTest {
 
     private static final Instant NOW = Instant.parse("2026-10-04T12:00:00Z");
     private static final UUID ORG = UUID.randomUUID();
@@ -49,11 +54,12 @@ class AuthenticationServiceTest {
     private final UserRepository users = mock(UserRepository.class);
     private final RefreshTokenRepository refreshTokens = mock(RefreshTokenRepository.class);
     private final AccessTokenBlocklist blocklist = mock(AccessTokenBlocklist.class);
-    private final JwtTokenIssuer jwtIssuer = mock(JwtTokenIssuer.class);
+    private final JwtTokenProvider jwtIssuer = mock(JwtTokenProvider.class);
     private final PasswordEncoder encoder = mock(PasswordEncoder.class);
     private final TestTransactions transactions = new TestTransactions();
-    private final AuthenticationService service = new AuthenticationService(users, refreshTokens, blocklist, jwtIssuer,
-            encoder, transactions.template(), Clock.fixed(NOW, ZoneOffset.UTC),
+    private final IamCommandService service = new IamCommandService(users, mock(RegisteredRucRepository.class),
+            mock(OrganizationAccessRepository.class), refreshTokens, mock(PasswordResetTokenRepository.class), blocklist,
+            jwtIssuer, encoder, transactions.template(), mock(OutboxWriter.class), Clock.fixed(NOW, ZoneOffset.UTC),
             new IamProperties(Duration.ofDays(7), Duration.ofMinutes(30), "http://web/reset"));
 
     @AfterEach
@@ -71,7 +77,7 @@ class AuthenticationServiceTest {
         when(encoder.matches("Segura123", "$2a$12$hash")).thenReturn(true);
         givenIssuedAccessToken();
 
-        AuthenticationService.SessionTokens tokens = service.signIn(" ANA@andina.pe ", "Segura123");
+        IamCommandService.SessionTokens tokens = service.signIn(" ANA@andina.pe ", "Segura123");
 
         assertThat(lookedUpInSystemMode).isTrue();
         assertThat(tokens.accessToken()).isEqualTo("jwt");
@@ -89,7 +95,7 @@ class AuthenticationServiceTest {
     void access_token_expiry_is_reported_in_whole_seconds_like_the_jwt_exp_claim() {
         when(users.findByEmail(any())).thenReturn(Optional.of(ANA));
         when(encoder.matches(anyString(), anyString())).thenReturn(true);
-        when(jwtIssuer.issue(any())).thenReturn(new JwtTokenIssuer.IssuedToken("jwt", "jti",
+        when(jwtIssuer.issue(any())).thenReturn(new JwtTokenProvider.IssuedToken("jwt", "jti",
                 Instant.parse("2026-10-04T12:15:00.987654Z")));
 
         assertThat(service.signIn("ana@andina.pe", "Segura123").accessTokenExpiresAt())
@@ -148,7 +154,7 @@ class AuthenticationServiceTest {
         when(users.findById(USER_ID)).thenReturn(Optional.of(ANA));
         givenIssuedAccessToken();
 
-        AuthenticationService.SessionTokens tokens = service.refresh(raw);
+        IamCommandService.SessionTokens tokens = service.refresh(raw);
 
         assertThat(tokens.refreshToken()).isNotEqualTo(raw);
         assertThat(current.isActive(NOW)).isFalse();
@@ -222,6 +228,6 @@ class AuthenticationServiceTest {
 
     private void givenIssuedAccessToken() {
         when(jwtIssuer.issue(any())).thenReturn(
-                new JwtTokenIssuer.IssuedToken("jwt", "jti", NOW.plus(Duration.ofMinutes(15))));
+                new JwtTokenProvider.IssuedToken("jwt", "jti", NOW.plus(Duration.ofMinutes(15))));
     }
 }

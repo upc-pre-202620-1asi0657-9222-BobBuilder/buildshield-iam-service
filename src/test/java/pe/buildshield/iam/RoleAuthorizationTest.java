@@ -14,11 +14,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
-import pe.buildshield.iam.shared.security.JwtTokenIssuer;
+import pe.buildshield.iam.shared.security.JwtTokenProvider;
 import pe.buildshield.iam.shared.security.RevokedTokenStore;
 import pe.buildshield.iam.shared.tenant.TenantInfo;
-import pe.buildshield.iam.application.AuthenticationService;
-import pe.buildshield.iam.application.PasswordResetService;
 import pe.buildshield.iam.application.IamCommandService;
 import pe.buildshield.iam.application.IamQueryService;
 import pe.buildshield.iam.application.UserView;
@@ -64,7 +62,7 @@ class RoleAuthorizationTest {
     MockMvc mvc;
 
     @Autowired
-    JwtTokenIssuer issuer;
+    JwtTokenProvider issuer;
 
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
@@ -79,18 +77,14 @@ class RoleAuthorizationTest {
     @MockitoBean
     IamQueryService queries;
 
-    @MockitoBean
-    PasswordResetService passwordResetService;
 
-    @MockitoBean
-    AuthenticationService authenticationService;
 
     @BeforeEach
     void stubServices() {
         when(commands.signUp(any())).thenReturn(new IamCommandService.SignUpResult(UUID.randomUUID(), UUID.randomUUID()));
-        AuthenticationService.SessionTokens tokens = new AuthenticationService.SessionTokens("a", Instant.now(), "r", Instant.now());
-        when(authenticationService.signIn(anyString(), anyString())).thenReturn(tokens);
-        when(authenticationService.refresh(anyString())).thenReturn(tokens);
+        IamCommandService.SessionTokens tokens = new IamCommandService.SessionTokens("a", Instant.now(), "r", Instant.now());
+        when(commands.signIn(anyString(), anyString())).thenReturn(tokens);
+        when(commands.refresh(anyString())).thenReturn(tokens);
         when(commands.createUser(any())).thenReturn(new UserView(
                 UUID.randomUUID(), "rosa@andina.pe", "Rosa", Role.WAREHOUSE_MANAGER, true));
         when(queries.listUsers()).thenReturn(List.of());

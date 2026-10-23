@@ -3,7 +3,7 @@ package pe.buildshield.iam.interfaces.rest;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import pe.buildshield.iam.application.AuthenticationService;
+import pe.buildshield.iam.application.IamCommandService;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -21,9 +21,9 @@ final class AuthResources {
             @Schema(description = "Razón social", example = "Constructora Andina SAC")
             @NotBlank @Size(max = 200) String legalName,
             @Schema(description = "Nombre del administrador", example = "Ana Torres")
-            @NotBlank @Size(max = 150) String adminFullName,
+            @NotBlank @Size(max = 120) String adminFullName,
             @Schema(description = "Correo del administrador; con él inicia sesión", example = "ana@andina.pe")
-            @NotBlank @Size(max = 254) String adminEmail,
+            @NotBlank @Size(max = 120) String adminEmail,
             @Schema(description = "8 a 72 caracteres, con al menos una letra y un número", example = "Segura123")
             @NotBlank String password) {
     }
@@ -67,7 +67,7 @@ final class AuthResources {
             Instant refreshTokenExpiresAt,
             @Schema(example = "Bearer") String tokenType) {
 
-        static TokenResponse from(AuthenticationService.SessionTokens tokens) {
+        static TokenResponse from(IamCommandService.SessionTokens tokens) {
             return new TokenResponse(tokens.accessToken(), tokens.accessTokenExpiresAt(), tokens.refreshToken(),
                     tokens.refreshTokenExpiresAt(), "Bearer");
         }

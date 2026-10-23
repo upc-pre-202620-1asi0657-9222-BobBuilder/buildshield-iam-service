@@ -20,7 +20,7 @@ import pe.buildshield.iam.shared.idempotency.IdempotencyKeyPurger;
 import pe.buildshield.iam.shared.idempotency.JdbcIdempotencyStore;
 import pe.buildshield.iam.shared.persistence.OrganizationTenantResolver;
 import pe.buildshield.iam.shared.security.JwtAuthenticationFilter;
-import pe.buildshield.iam.shared.security.JwtTokenIssuer;
+import pe.buildshield.iam.shared.security.JwtTokenProvider;
 import pe.buildshield.iam.shared.security.RevokedTokenStore;
 import pe.buildshield.iam.shared.tenant.TenantInfo;
 import pe.buildshield.iam.shared.testsupport.TestKeys;
@@ -67,13 +67,13 @@ class BuildshieldAutoConfigurationTest {
                         "buildshield.security.jwt-private-key=" + TestKeys.privatePem(TestKeys.MAIN))
                 .withBean(RevokedTokenStore.class, () -> tokenId -> false)
                 .run(context -> {
-                    assertThat(context).hasSingleBean(JwtAuthenticationFilter.class).hasSingleBean(JwtTokenIssuer.class);
+                    assertThat(context).hasSingleBean(JwtAuthenticationFilter.class).hasSingleBean(JwtTokenProvider.class);
                     FilterRegistrationBean<?> jwt = registration(context.getBeansOfType(FilterRegistrationBean.class),
                             JwtAuthenticationFilter.class);
                     assertThat(jwt.isEnabled()).isFalse();
 
                     TenantInfo tenant = new TenantInfo(UUID.randomUUID(), UUID.randomUUID(), "SUPERVISOR");
-                    String token = context.getBean(JwtTokenIssuer.class).issue(tenant).value();
+                    String token = context.getBean(JwtTokenProvider.class).issue(tenant).value();
                     assertThat(context.getBean(JwtDecoder.class).decode(token).getSubject())
                             .isEqualTo(tenant.userId().toString());
                 });

@@ -8,7 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import pe.buildshield.iam.acceptance.CucumberSpringConfiguration.CapturingEmailPort;
+import pe.buildshield.iam.acceptance.CucumberSpringConfiguration.PasswordResetOutbox;
 import pe.buildshield.iam.domain.model.Role;
 import pe.buildshield.iam.support.MutableClock;
 
@@ -37,7 +37,7 @@ public class IamSteps {
     MutableClock clock;
 
     @Autowired
-    CapturingEmailPort emails;
+    PasswordResetOutbox emails;
 
     @Autowired
     JwtDecoder jwtDecoder;

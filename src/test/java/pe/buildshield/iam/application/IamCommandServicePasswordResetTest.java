@@ -9,8 +9,13 @@ import pe.buildshield.iam.domain.model.PasswordResetToken;
 import pe.buildshield.iam.domain.model.Role;
 import pe.buildshield.iam.domain.model.TokenRepositories.PasswordResetTokenRepository;
 import pe.buildshield.iam.domain.model.TokenRepositories.RefreshTokenRepository;
+import pe.buildshield.iam.domain.model.OrganizationAccessRepository;
+import pe.buildshield.iam.domain.model.RegisteredRucRepository;
+import pe.buildshield.iam.domain.model.TokenRepositories.AccessTokenBlocklist;
 import pe.buildshield.iam.domain.model.User;
 import pe.buildshield.iam.domain.model.UserRepository;
+import pe.buildshield.iam.shared.messaging.OutboxWriter;
+import pe.buildshield.iam.shared.security.JwtTokenProvider;
 import pe.buildshield.iam.support.TestTransactions;
 
 import java.time.Clock;
@@ -31,7 +36,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-class PasswordResetServiceTest {
+/** Recuperación de contraseña en {@link IamCommandService} (US05): publica PasswordResetRequested. */
+class IamCommandServicePasswordResetTest {
 
     private static final Instant NOW = Instant.parse("2026-10-04T12:00:00Z");
     private static final UUID ORG = UUID.randomUUID();
@@ -40,11 +46,12 @@ class PasswordResetServiceTest {
     private final UserRepository users = mock(UserRepository.class);
     private final PasswordResetTokenRepository resetTokens = mock(PasswordResetTokenRepository.class);
     private final RefreshTokenRepository refreshTokens = mock(RefreshTokenRepository.class);
-    private final EmailPort email = mock(EmailPort.class);
+    private final OutboxWriter outbox = mock(OutboxWriter.class);
     private final PasswordEncoder encoder = mock(PasswordEncoder.class);
     private final TestTransactions transactions = new TestTransactions();
-    private final PasswordResetService service = new PasswordResetService(users, resetTokens, refreshTokens, email,
-            encoder, transactions.template(), Clock.fixed(NOW, ZoneOffset.UTC),
+    private final IamCommandService service = new IamCommandService(users, mock(RegisteredRucRepository.class),
+            mock(OrganizationAccessRepository.class), refreshTokens, resetTokens, mock(AccessTokenBlocklist.class),
+            mock(JwtTokenProvider.class), encoder, transactions.template(), outbox, Clock.fixed(NOW, ZoneOffset.UTC),
             new IamProperties(Duration.ofDays(7), Duration.ofMinutes(30), "https://app.buildshield.pe/restablecer"));
 
     private User ana(boolean active) {
@@ -60,10 +67,14 @@ class PasswordResetServiceTest {
 
         ArgumentCaptor<PasswordResetToken> stored = ArgumentCaptor.forClass(PasswordResetToken.class);
         verify(resetTokens).save(stored.capture());
-        ArgumentCaptor<String> link = ArgumentCaptor.forClass(String.class);
-        verify(email).sendPasswordReset(eq(new EmailAddress("ana@andina.pe")), eq("Ana Torres"), link.capture(),
-                eq(NOW.plus(Duration.ofMinutes(30))));
-        String rawToken = link.getValue().substring("https://app.buildshield.pe/restablecer?token=".length());
+        ArgumentCaptor<Object> event = ArgumentCaptor.forClass(Object.class);
+        verify(outbox).append(eq(ORG), eq(null), eq(IamEvents.PASSWORD_RESET_REQUESTED), eq(IamEvents.USER), eq(USER_ID),
+                event.capture());
+        IamEvents.PasswordResetRequested requested = (IamEvents.PasswordResetRequested) event.getValue();
+        assertThat(requested.email()).isEqualTo("ana@andina.pe");
+        assertThat(requested.fullName()).isEqualTo("Ana Torres");
+        assertThat(requested.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(30)));
+        String rawToken = requested.resetLink().substring("https://app.buildshield.pe/restablecer?token=".length());
         assertThat(stored.getValue().tokenHash()).isEqualTo(OpaqueTokens.hash(rawToken)).isNotEqualTo(rawToken);
         assertThat(stored.getValue().expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(30)));
     }
@@ -76,7 +87,7 @@ class PasswordResetServiceTest {
         service.requestReset("inactiva@andina.pe");
         service.requestReset("no-es-correo");
 
-        verifyNoInteractions(email, resetTokens);
+        verifyNoInteractions(outbox, resetTokens);
     }
 
     @Test

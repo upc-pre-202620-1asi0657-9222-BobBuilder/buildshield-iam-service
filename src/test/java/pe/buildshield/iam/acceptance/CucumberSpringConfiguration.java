@@ -7,22 +7,20 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
-import pe.buildshield.iam.application.EmailPort;
-import pe.buildshield.iam.domain.model.EmailAddress;
+import org.springframework.jdbc.core.JdbcTemplate;
 import pe.buildshield.iam.support.ContainersConfig;
 import pe.buildshield.iam.support.MutableClock;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Contexto de los escenarios: servicio completo en un servidor HTTP real (puerto aleatorio), PostgreSQL real y Kafka embebido, con un reloj controlable y
- * un {@link EmailPort} que guarda los correos para leer el enlace de recuperación.
+ * Contexto de los escenarios: servicio completo en un servidor HTTP real (puerto aleatorio), PostgreSQL real y Kafka embebido, con un reloj controlable.
+ * El enlace de recuperación se lee del evento {@code PasswordResetRequested} en el outbox: el correo lo envía
+ * Notificaciones, no iam.
  */
 @CucumberContextConfiguration
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -41,9 +39,8 @@ public class CucumberSpringConfiguration {
         }
 
         @Bean
-        @Primary
-        CapturingEmailPort capturingEmailPort() {
-            return new CapturingEmailPort();
+        PasswordResetOutbox passwordResetOutbox(JdbcTemplate jdbc) {
+            return new PasswordResetOutbox(jdbc);
         }
 
         @Bean
@@ -53,22 +50,20 @@ public class CucumberSpringConfiguration {
         }
     }
 
-    /** Correos "enviados" durante el escenario. */
-    public static class CapturingEmailPort implements EmailPort {
+    /** Solicitudes de recuperación publicadas en el outbox durante el escenario (la base se vacía antes de cada uno). */
+    public static class PasswordResetOutbox {
 
-        private final List<SentEmail> sent = new CopyOnWriteArrayList<>();
+        private final JdbcTemplate jdbc;
 
-        @Override
-        public void sendPasswordReset(EmailAddress to, String fullName, String resetLink, Instant expiresAt) {
-            sent.add(new SentEmail(to.value(), resetLink));
+        PasswordResetOutbox(JdbcTemplate jdbc) {
+            this.jdbc = jdbc;
         }
 
         public List<SentEmail> sent() {
-            return sent;
-        }
-
-        public void clear() {
-            sent.clear();
+            return jdbc.query("""
+                    SELECT payload -> 'payload' ->> 'email' AS email, payload -> 'payload' ->> 'resetLink' AS link
+                    FROM outbox_events WHERE event_type = 'PasswordResetRequested' ORDER BY occurred_at, id
+                    """, (rs, row) -> new SentEmail(rs.getString("email"), rs.getString("link")));
         }
     }
 

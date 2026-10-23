@@ -6,12 +6,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import pe.buildshield.iam.shared.config.BuildshieldProperties;
-import pe.buildshield.iam.shared.security.JwtTokenIssuer;
+import pe.buildshield.iam.shared.security.JwtTokenProvider;
 import pe.buildshield.iam.shared.security.PemKeys;
 import pe.buildshield.iam.shared.security.RevokedTokenStore;
 import pe.buildshield.iam.shared.tenant.TenantInfo;
-import pe.buildshield.iam.application.AuthenticationService;
-import pe.buildshield.iam.application.PasswordResetService;
 import pe.buildshield.iam.application.IamCommandService;
 import pe.buildshield.iam.support.WebSliceTest;
 
@@ -42,7 +40,7 @@ class IamJwtAuthenticationFilterTest {
     MockMvc mvc;
 
     @Autowired
-    JwtTokenIssuer issuer;
+    JwtTokenProvider issuer;
 
     @Autowired
     BuildshieldProperties properties;
@@ -50,14 +48,10 @@ class IamJwtAuthenticationFilterTest {
     @MockitoBean
     RevokedTokenStore revokedTokens;
 
-    @MockitoBean
-    AuthenticationService authenticationService;
 
     @MockitoBean
     IamCommandService commandService;
 
-    @MockitoBean
-    PasswordResetService passwordResetService;
 
     @Test
     void request_without_token_is_401() throws Exception {
@@ -68,7 +62,7 @@ class IamJwtAuthenticationFilterTest {
 
     @Test
     void expired_token_is_401() throws Exception {
-        JwtTokenIssuer pastIssuer = new JwtTokenIssuer(
+        JwtTokenProvider pastIssuer = new JwtTokenProvider(
                 PemKeys.publicKey(properties.getSecurity().getJwtPublicKey()),
                 PemKeys.privateKey(properties.getSecurity().getJwtPrivateKey()),
                 properties.getSecurity().getIssuer(),
@@ -81,7 +75,7 @@ class IamJwtAuthenticationFilterTest {
 
     @Test
     void revoked_token_is_401() throws Exception {
-        JwtTokenIssuer.IssuedToken token = issuer.issue(ANA);
+        JwtTokenProvider.IssuedToken token = issuer.issue(ANA);
         when(revokedTokens.isRevoked(token.tokenId())).thenReturn(true);
 
         mvc.perform(post("/api/v1/auth/sign-out").header("Authorization", "Bearer " + token.value()))
@@ -98,19 +92,19 @@ class IamJwtAuthenticationFilterTest {
 
     @Test
     void valid_token_reaches_the_endpoint_with_the_user_and_token_id() throws Exception {
-        JwtTokenIssuer.IssuedToken token = issuer.issue(ANA);
+        JwtTokenProvider.IssuedToken token = issuer.issue(ANA);
 
         mvc.perform(post("/api/v1/auth/sign-out").header("Authorization", "Bearer " + token.value()))
                 .andExpect(status().isNoContent());
 
-        verify(authenticationService).signOut(ANA.userId(), token.tokenId(), null);
+        verify(commandService).signOut(ANA.userId(), token.tokenId(), null);
     }
 
     @Test
     void an_expired_or_revoked_token_does_not_block_refreshing_the_session() throws Exception {
-        JwtTokenIssuer.IssuedToken revoked = issuer.issue(ANA);
+        JwtTokenProvider.IssuedToken revoked = issuer.issue(ANA);
         when(revokedTokens.isRevoked(revoked.tokenId())).thenReturn(true);
-        when(authenticationService.refresh("r")).thenReturn(new AuthenticationService.SessionTokens(
+        when(commandService.refresh("r")).thenReturn(new IamCommandService.SessionTokens(
                 "a", Instant.now(), "r2", Instant.now()));
 
         mvc.perform(post("/api/v1/auth/refresh").header("Authorization", "Bearer " + revoked.value())
@@ -123,7 +117,7 @@ class IamJwtAuthenticationFilterTest {
 
     @Test
     void public_endpoints_do_not_need_a_token() throws Exception {
-        when(authenticationService.refresh(any())).thenThrow(
+        when(commandService.refresh(any())).thenThrow(
                 pe.buildshield.iam.domain.model.AuthenticationFailedException.invalidRefreshToken());
 
         mvc.perform(post("/api/v1/auth/refresh").contentType("application/json").content("{\"refreshToken\":\"x\"}"))

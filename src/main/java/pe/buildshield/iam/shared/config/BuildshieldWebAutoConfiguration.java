@@ -27,7 +27,7 @@ import pe.buildshield.iam.shared.idempotency.IdempotencyStore;
 import pe.buildshield.iam.shared.idempotency.JdbcIdempotencyStore;
 import pe.buildshield.iam.shared.security.BuildshieldJwt;
 import pe.buildshield.iam.shared.security.JwtAuthenticationFilter;
-import pe.buildshield.iam.shared.security.JwtTokenIssuer;
+import pe.buildshield.iam.shared.security.JwtTokenProvider;
 import pe.buildshield.iam.shared.security.PemKeys;
 import pe.buildshield.iam.shared.security.RevokedTokenStore;
 
@@ -99,9 +99,9 @@ public class BuildshieldWebAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean
         @ConditionalOnProperty(prefix = "buildshield.security", name = "jwt-private-key")
-        JwtTokenIssuer jwtTokenIssuer(BuildshieldProperties properties, Clock clock) {
+        JwtTokenProvider jwtTokenProvider(BuildshieldProperties properties, Clock clock) {
             BuildshieldProperties.Security security = properties.getSecurity();
-            return new JwtTokenIssuer(PemKeys.publicKey(security.getJwtPublicKey()),
+            return new JwtTokenProvider(PemKeys.publicKey(security.getJwtPublicKey()),
                     PemKeys.privateKey(security.getJwtPrivateKey()), security.getIssuer(), clock);
         }
     }

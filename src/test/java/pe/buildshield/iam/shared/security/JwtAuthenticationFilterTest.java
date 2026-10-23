@@ -46,8 +46,8 @@ class JwtAuthenticationFilterTest {
     private final JwtDecoder decoder = BuildshieldJwt.decoder(TestKeys.publicKey(TestKeys.MAIN), ISSUER, clock);
     private final JwtAuthenticationFilter filter =
             new JwtAuthenticationFilter(decoder, revoked::contains, new ErrorResponseWriter(new ObjectMapper()));
-    private final JwtTokenIssuer issuer =
-            new JwtTokenIssuer(TestKeys.publicKey(TestKeys.MAIN), TestKeys.privateKey(TestKeys.MAIN), ISSUER, clock);
+    private final JwtTokenProvider issuer =
+            new JwtTokenProvider(TestKeys.publicKey(TestKeys.MAIN), TestKeys.privateKey(TestKeys.MAIN), ISSUER, clock);
 
     @AfterEach
     void clearContexts() {
@@ -185,7 +185,7 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void revoked_token_is_rejected() throws Exception {
-        JwtTokenIssuer.IssuedToken token = issuer.issue(TENANT);
+        JwtTokenProvider.IssuedToken token = issuer.issue(TENANT);
         revoked.add(token.tokenId());
 
         assertUnauthorized(run(token.value(), req -> { }), "TOKEN_REVOKED");
@@ -193,7 +193,7 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void issued_token_expires_in_15_minutes() {
-        JwtTokenIssuer.IssuedToken token = issuer.issue(TENANT);
+        JwtTokenProvider.IssuedToken token = issuer.issue(TENANT);
 
         assertThat(token.expiresAt()).isEqualTo(clock.instant().plus(Duration.ofMinutes(15)));
         assertThat(decoder.decode(token.value()).getClaimAsString(JwtClaimNames.ROLE)).isEqualTo("SUPERVISOR");
