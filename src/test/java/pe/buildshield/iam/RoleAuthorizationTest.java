@@ -88,6 +88,9 @@ class RoleAuthorizationTest {
         when(commands.createUser(any())).thenReturn(new UserView(
                 UUID.randomUUID(), "rosa@andina.pe", "Rosa", Role.WAREHOUSE_MANAGER, true));
         when(queries.listUsers()).thenReturn(List.of());
+        UserView rosa = new UserView(ANY_ID, "rosa@andina.pe", "Rosa", Role.WAREHOUSE_MANAGER, true);
+        when(queries.getUser(any())).thenReturn(rosa);
+        when(queries.currentUser()).thenReturn(new IamQueryService.Profile(rosa, Role.WAREHOUSE_MANAGER.permissions()));
         when(commands.updateUser(any(), any())).thenReturn(new UserView(
                 ANY_ID, "rosa@andina.pe", "Rosa", Role.WAREHOUSE_MANAGER, false));
     }
@@ -112,6 +115,14 @@ class RoleAuthorizationTest {
             "GET , /api/v1/users        ,            , ADMINISTRATOR    , 200",
             "GET , /api/v1/users        ,            , WAREHOUSE_MANAGER, 403",
             "GET , /api/v1/users        ,            , SITE_MANAGER     , 403",
+            "GET , /api/v1/users/me     ,            , ANONYMOUS        , 401",
+            "GET , /api/v1/users/me     ,            , ADMINISTRATOR    , 200",
+            "GET , /api/v1/users/me     ,            , WAREHOUSE_MANAGER, 200",
+            "GET , /api/v1/users/me     ,            , SITE_MANAGER     , 200",
+            "GET , /api/v1/users/00000000-0000-0000-0000-0000000000bb,  , ANONYMOUS        , 401",
+            "GET , /api/v1/users/00000000-0000-0000-0000-0000000000bb,  , ADMINISTRATOR    , 200",
+            "GET , /api/v1/users/00000000-0000-0000-0000-0000000000bb,  , WAREHOUSE_MANAGER, 403",
+            "GET , /api/v1/users/00000000-0000-0000-0000-0000000000bb,  , SITE_MANAGER     , 403",
             "PATCH, /api/v1/users/00000000-0000-0000-0000-0000000000bb, update-user, ANONYMOUS, 401",
             "PATCH, /api/v1/users/00000000-0000-0000-0000-0000000000bb, update-user, ADMINISTRATOR, 200",
             "PATCH, /api/v1/users/00000000-0000-0000-0000-0000000000bb, update-user, WAREHOUSE_MANAGER, 403",

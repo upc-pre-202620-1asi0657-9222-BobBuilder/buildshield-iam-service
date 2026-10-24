@@ -146,7 +146,7 @@ public class IamCommandService {
         }
         try {
             User created = users.save(User.register(organizationId, email, command.fullName(), role,
-                    passwordEncoder.encode(command.password())));
+                    passwordEncoder.encode(command.password()), command.phone()));
             outbox.append(IamEvents.USER_CREATED, IamEvents.USER, created.id(), userCreated(created));
             return UserView.of(created);
         } catch (DataIntegrityViolationException ex) {
@@ -162,8 +162,8 @@ public class IamCommandService {
      */
     @Transactional
     public UserView updateUser(UUID userId, UpdateUserCommand command) {
-        if (command.active() == null && (command.role() == null || command.role().isBlank())) {
-            throw new ValidationException("EMPTY_UPDATE", "Indica active o role");
+        if (command.active() == null && (command.role() == null || command.role().isBlank()) && command.phone() == null) {
+            throw new ValidationException("EMPTY_UPDATE", "Indica active, role o phone");
         }
         Role role = command.role() == null ? null : Role.parse(command.role());
         TenantInfo requester = TenantContext.require();
@@ -175,8 +175,10 @@ public class IamCommandService {
                     "No puedes desactivarte ni cambiar tu propio rol; pídelo a otro administrador");
         }
         requireWritable(requester.organizationId());
+        boolean phoneChanged = command.phone() != null && user.changePhone(command.phone());
         if (!user.update(command.active(), role)) {
-            return UserView.of(user);
+            // Solo el teléfono: no revoca sesiones ni publica UserUpdated (el evento no lleva el teléfono).
+            return UserView.of(phoneChanged ? users.save(user) : user);
         }
         User saved = users.save(user);
         refreshTokens.revokeAllActive(saved.id(), clock.instant());
@@ -344,10 +346,19 @@ public class IamCommandService {
     public record SignUpResult(UUID organizationId, UUID administratorId) {
     }
 
-    public record CreateUserCommand(String fullName, String email, String role, String password) {
+    public record CreateUserCommand(String fullName, String email, String role, String password, String phone) {
+
+        public CreateUserCommand(String fullName, String email, String role, String password) {
+            this(fullName, email, role, password, null);
+        }
     }
 
-    public record UpdateUserCommand(Boolean active, String role) {
+    /** @param phone teléfono nuevo; vacío lo borra y {@code null} no lo cambia */
+    public record UpdateUserCommand(Boolean active, String role, String phone) {
+
+        public UpdateUserCommand(Boolean active, String role) {
+            this(active, role, null);
+        }
     }
 
     public record SessionTokens(String accessToken, Instant accessTokenExpiresAt, String refreshToken,

@@ -85,3 +85,32 @@ Característica: US04 Gestión de usuarios y roles
     Y que "rosa@andina.pe" inició sesión con la contraseña "Almacen123"
     Cuando desactivo al usuario "rosa@andina.pe"
     Entonces la operación es rechazada con estado 403
+
+  Escenario: El administrador registra y cambia el teléfono de un usuario sin cerrar su sesión
+    Dado que creé el usuario "Rosa Quispe" con correo "rosa@andina.pe", rol "encargado de almacén", contraseña "Almacen123" y teléfono "+51 987 654 321"
+    Y que "rosa@andina.pe" inició sesión con la contraseña "Almacen123"
+    Y que "ana@andina.pe" inició sesión con la contraseña "Segura123"
+    Cuando cambio el teléfono de "rosa@andina.pe" a "999888777"
+    Entonces la respuesta tiene estado 200
+    Y el usuario "rosa@andina.pe" tiene el teléfono "999888777"
+    Y la sesión que tenía "rosa@andina.pe" sigue sirviendo
+
+  Escenario: El teléfono debe ser válido
+    Cuando creo el usuario "Rosa Quispe" con correo "rosa@andina.pe", rol "encargado de almacén", contraseña "Almacen123" y teléfono "abc-123"
+    Entonces la operación es rechazada con estado 400 y código "INVALID_PHONE"
+
+  Escenario: Cada usuario ve su perfil con los permisos de su rol
+    Dado que creé el usuario "Jorge Huamán" con correo "jorge@andina.pe", rol "encargado de obra" y contraseña "Obra12345"
+    Y que "jorge@andina.pe" inició sesión con la contraseña "Obra12345"
+    Cuando consulto mi perfil
+    Entonces la respuesta tiene estado 200
+    Y mi perfil es de "jorge@andina.pe" con los permisos:
+      | REQUEST_MATERIAL       |
+      | RECEIVE_DISPATCHES     |
+      | REGISTER_DISCREPANCIES |
+
+  Escenario: El administrador no ve usuarios de otra organización
+    Dado que la organización "Constructora Sur SAC" con RUC "20999999991" está registrada con el administrador "luis@sur.pe" y contraseña "Segura123"
+    Y que "ana@andina.pe" inició sesión con la contraseña "Segura123"
+    Cuando consulto el usuario "luis@sur.pe"
+    Entonces la operación es rechazada con estado 404 y código "USER_NOT_FOUND"

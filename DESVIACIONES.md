@@ -18,13 +18,13 @@ Fuente fija: `buildshield-presentacion-v4.pdf`. El ER de `iam_db` está en la p�
 | `password_reset_tokens` | `organization_id` | Permite filtrar por organización sin consultar `users`. |
 | `outbox_events` | `correlation_id` | Cabecera Kafka `X-Correlation-Id` para seguir una petición entre servicios. |
 
-`users.phone` ya existe en la base (V2), pero todavía no se expone en la API.
+`users.phone` se recibe al crear (`POST /users`), se cambia con `PATCH /users/{id}` y se devuelve en todas las vistas de usuario.
 
 ## Componentes
 
 - **IAM Controller** está partido en `AuthController` (autenticación y recuperación) y `UsersController` (usuarios y roles), en el mismo paquete `interfaces.rest`.
 - **IAM Repository** son los repositorios por agregado: `UserRepository`, los de tokens y `OrganizationAccessRepository`.
-- **IAM Domain**: `Role` es un enum y los permisos se derivan del rol en `@PreAuthorize`, sin tabla. `Session` es `RefreshToken`.
+- **IAM Domain**: `Role` es un enum y cada rol trae sus `Permission` (enum, sin tabla), sacados de las responsabilidades de cada persona en el C4 de contenedores (pág. 21). `GET /users/me` los devuelve para la web. Cada servicio sigue validando el rol con `@PreAuthorize`. `Session` es `RefreshToken`.
 
 ## Contrato con otros servicios
 

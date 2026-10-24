@@ -190,6 +190,59 @@ public class IamSteps {
         }
     }
 
+    @Cuando("creo el usuario {string} con correo {string}, rol {string}, contraseña {string} y teléfono {string}")
+    public void createUserWithPhone(String fullName, String email, String roleName, String password, String phone)
+            throws Exception {
+        session.send(post("/api/v1/users"), Map.of("fullName", fullName, "email", email, "role", role(roleName),
+                "password", password, "phone", phone));
+        if (session.status() == 201) {
+            session.put(email, UUID.fromString(session.body().path("id").asText()));
+        }
+    }
+
+    @Dado("que creé el usuario {string} con correo {string}, rol {string}, contraseña {string} y teléfono {string}")
+    public void userCreatedWithPhone(String fullName, String email, String roleName, String password, String phone)
+            throws Exception {
+        createUserWithPhone(fullName, email, roleName, password, phone);
+        session.expectStatus(201);
+    }
+
+    @Cuando("cambio el teléfono de {string} a {string}")
+    public void changePhone(String email, String phone) throws Exception {
+        session.send(ApiRequest.patch("/api/v1/users/" + session.id(email)), Map.of("phone", phone));
+    }
+
+    @Entonces("el usuario {string} tiene el teléfono {string}")
+    public void userHasPhone(String email, String phone) throws Exception {
+        ApiResponse response = session.perform(get("/api/v1/users/" + session.id(email)), null, session.accessToken());
+        assertThat(response.status()).isEqualTo(200);
+        assertThat(session.read(response).path("phone").asText()).isEqualTo(phone);
+    }
+
+    @Entonces("la sesión que tenía {string} sigue sirviendo")
+    public void previousSessionStillWorks(String email) throws Exception {
+        ApiResponse me = session.perform(get("/api/v1/users/me"), null, session.sessionOf(email)[0]);
+        assertThat(me.status()).as("token de acceso de %s", email).isEqualTo(200);
+    }
+
+    @Cuando("consulto mi perfil")
+    public void myProfile() throws Exception {
+        session.send(get("/api/v1/users/me"), null);
+    }
+
+    @Entonces("mi perfil es de {string} con los permisos:")
+    public void profileIs(String email, List<String> permissions) throws Exception {
+        assertThat(session.body().path("user").path("email").asText()).isEqualTo(email);
+        List<String> actual = new ArrayList<>();
+        session.body().path("permissions").forEach(permission -> actual.add(permission.asText()));
+        assertThat(actual).containsExactlyElementsOf(permissions);
+    }
+
+    @Cuando("consulto el usuario {string}")
+    public void getUser(String email) throws Exception {
+        session.send(get("/api/v1/users/" + session.id(email)), null);
+    }
+
     @Dado("que creé el usuario {string} con correo {string}, rol {string} y contraseña {string}")
     public void userCreated(String fullName, String email, String roleName, String password) throws Exception {
         createUser(fullName, email, roleName, password);

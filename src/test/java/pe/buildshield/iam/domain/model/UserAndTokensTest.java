@@ -31,6 +31,34 @@ class UserAndTokensTest {
     }
 
     @Test
+    void phone_is_optional_validated_and_changes_without_touching_the_session() {
+        User user = User.register(ORG, EMAIL, "Ana", Role.ADMINISTRATOR, "$2a$hash", " +51 987 654 321 ");
+        assertThat(user.phone()).isEqualTo("+51 987 654 321");
+        assertThat(User.register(ORG, EMAIL, "Ana", Role.ADMINISTRATOR, "$2a$hash", "  ").phone()).isNull();
+        assertThatThrownBy(() -> User.register(ORG, EMAIL, "Ana", Role.ADMINISTRATOR, "$2a$hash", "abc-123"))
+                .isInstanceOf(ValidationException.class).hasFieldOrPropertyWithValue("code", "INVALID_PHONE");
+
+        assertThat(user.changePhone("+51 987 654 321")).isFalse();
+        assertThat(user.changePhone("987654321")).isTrue();
+        assertThat(user.phone()).isEqualTo("987654321");
+        assertThat(user.changePhone("")).isTrue();
+        assertThat(user.phone()).isNull();
+        assertThat(user.canSignIn()).isTrue();
+    }
+
+    @Test
+    void each_role_has_the_permissions_of_its_responsibilities() {
+        assertThat(Role.ADMINISTRATOR.permissions()).containsExactly(Permission.MANAGE_USERS,
+                Permission.MANAGE_LOCATIONS, Permission.MANAGE_SUBSCRIPTION);
+        assertThat(Role.WAREHOUSE_MANAGER.permissions()).containsExactly(Permission.ATTEND_ORDERS,
+                Permission.REGISTER_DISPATCHES);
+        assertThat(Role.SITE_MANAGER.permissions()).containsExactly(Permission.REQUEST_MATERIAL,
+                Permission.RECEIVE_DISPATCHES, Permission.REGISTER_DISCREPANCIES);
+        Role.SITE_MANAGER.permissions().clear();
+        assertThat(Role.SITE_MANAGER.permissions()).hasSize(3);
+    }
+
+    @Test
     void full_name_is_required_and_bounded() {
         assertThatThrownBy(() -> User.register(ORG, EMAIL, " ", Role.ADMINISTRATOR, "h"))
                 .isInstanceOf(ValidationException.class).hasFieldOrPropertyWithValue("code", "INVALID_FULL_NAME");

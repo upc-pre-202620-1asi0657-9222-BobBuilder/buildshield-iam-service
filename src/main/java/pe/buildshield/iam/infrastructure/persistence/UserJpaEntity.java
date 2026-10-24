@@ -34,6 +34,9 @@ public class UserJpaEntity extends AuditableAbstractAggregateRoot<UserJpaEntity>
     @Column(name = "active", nullable = false)
     private boolean active;
 
+    @Column(name = "phone", length = 20)
+    private String phone;
+
     protected UserJpaEntity() {
     }
 
@@ -47,10 +50,11 @@ public class UserJpaEntity extends AuditableAbstractAggregateRoot<UserJpaEntity>
         role = user.role();
         passwordHash = user.passwordHash();
         active = user.active();
+        phone = user.phone();
     }
 
     User toDomain() {
         return User.restore(getId(), getOrganizationId(), new EmailAddress(email), fullName, role, passwordHash,
-                active, getVersion());
+                active, phone, getVersion());
     }
 }

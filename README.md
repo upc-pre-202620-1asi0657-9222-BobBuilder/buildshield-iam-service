@@ -14,7 +14,8 @@ Contrato de la arquitectura: `wiki/informe-tf/plan-microservicios.md` del proyec
 ## Endpoints
 
 - `POST /api/v1/auth/sign-up`, `sign-in`, `refresh`, `sign-out`, `password-reset`, `password-reset/confirm`
-- `POST /api/v1/users`, `GET /api/v1/users`, `PATCH /api/v1/users/{id}` (solo ADMINISTRATOR)
+- `POST /api/v1/users`, `GET /api/v1/users`, `GET /api/v1/users/{id}` y `PATCH /api/v1/users/{id}` (estado, rol y teléfono), solo ADMINISTRATOR
+- `GET /api/v1/users/me`: usuario del token con los permisos de su rol (cualquier rol)
 - OpenAPI en `/api/v1/api-docs` y `/swagger-ui.html` (perfiles local y test)
 
 ## Variables de entorno

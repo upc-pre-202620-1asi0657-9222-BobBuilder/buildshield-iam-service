@@ -60,7 +60,7 @@ class UsersController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     ResponseEntity<UserResource> create(@Valid @RequestBody CreateUserRequest request) {
         UserView created = commands.createUser(new IamCommandService.CreateUserCommand(
-                request.fullName(), request.email(), request.role(), request.password()));
+                request.fullName(), request.email(), request.role(), request.password(), request.phone()));
         return ResponseEntity.created(URI.create("/api/v1/users/" + created.id())).body(UserResource.of(created));
     }
 
@@ -77,12 +77,44 @@ class UsersController {
         return queries.listUsers().stream().map(UserResource::of).toList();
     }
 
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Ver mi usuario y mis permisos",
+            description = "Datos del usuario del token y los permisos de su rol, para que la web muestre solo las "
+                    + "acciones que le corresponden. Cualquier rol.")
+    @ApiResponse(responseCode = "200", description = "Usuario del token con sus permisos",
+            content = @Content(schema = @Schema(implementation = ProfileResource.class),
+                    examples = @ExampleObject(value = IamApiExamples.PROFILE)))
+    @ApiResponse(responseCode = "401", description = "Sin token de acceso válido",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    ProfileResource me() {
+        IamQueryService.Profile profile = queries.currentUser();
+        return new ProfileResource(UserResource.of(profile.user()),
+                profile.permissions().stream().map(Enum::name).toList());
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @Operation(summary = "Ver un usuario de la organización",
+            description = "Detalle de un usuario de la organización del administrador, activo o inactivo.")
+    @ApiResponse(responseCode = "200", description = "Usuario encontrado",
+            content = @Content(schema = @Schema(implementation = UserResource.class),
+                    examples = @ExampleObject(value = IamApiExamples.USER)))
+    @ApiResponse(responseCode = "403", description = "Solo un administrador puede ver usuarios",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "El usuario no existe o es de otra organización",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    UserResource get(@Parameter(description = "Id del usuario", example = "9c2d3e4f-5a6b-4c7d-8e9f-a0b1c2d3e4f5")
+            @PathVariable UUID id) {
+        return UserResource.of(queries.getUser(id));
+    }
+
     @PatchMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    @Operation(summary = "Desactivar, reactivar o cambiar el rol de un usuario",
-            description = "US04: active=false desactiva (no inicia sesión) y role cambia el rol. Si algo cambia se "
-                    + "revocan sus sesiones y sus tokens de acceso dejan de valer. El administrador no se desactiva ni "
-                    + "cambia su propio rol.")
+    @Operation(summary = "Desactivar, reactivar, cambiar el rol o el teléfono de un usuario",
+            description = "US04: active=false desactiva (no inicia sesión) y role cambia el rol. Si cambia el estado o "
+                    + "el rol se revocan sus sesiones y sus tokens de acceso dejan de valer. phone cambia el teléfono "
+                    + "(vacío lo borra) sin cerrar sesiones. El administrador no se desactiva ni cambia su propio rol.")
     @ApiResponse(responseCode = "200", description = "Usuario actualizado",
             content = @Content(schema = @Schema(implementation = UserResource.class),
                     examples = @ExampleObject(value = IamApiExamples.USER_DEACTIVATED)))
@@ -95,16 +127,17 @@ class UsersController {
     @ApiResponse(responseCode = "409", description = "El administrador intenta desactivarse o cambiar su propio rol "
             + "(CANNOT_CHANGE_OWN_ACCOUNT)", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     UserResource update(@Parameter(description = "Id del usuario", example = "9c2d3e4f-5a6b-4c7d-8e9f-a0b1c2d3e4f5")
-            @PathVariable UUID id, @RequestBody UpdateUserRequest request) {
+            @PathVariable UUID id, @Valid @RequestBody UpdateUserRequest request) {
         return UserResource.of(commands.updateUser(id,
-                new IamCommandService.UpdateUserCommand(request.active(), request.role())));
+                new IamCommandService.UpdateUserCommand(request.active(), request.role(), request.phone())));
     }
 
     @Schema(description = "Cambios del usuario: al menos uno")
     record UpdateUserRequest(
             @Schema(description = "false desactiva, true reactiva", example = "false") Boolean active,
             @Schema(example = "SITE_MANAGER", allowableValues = {"ADMINISTRATOR", "WAREHOUSE_MANAGER", "SITE_MANAGER"})
-            String role) {
+            String role,
+            @Schema(description = "Teléfono; vacío lo borra", example = "+51 987 654 321") @Size(max = 20) String phone) {
     }
 
     @Schema(description = "Datos del nuevo usuario")
@@ -114,14 +147,21 @@ class UsersController {
             @Schema(example = "WAREHOUSE_MANAGER", allowableValues = {"ADMINISTRATOR", "WAREHOUSE_MANAGER", "SITE_MANAGER"})
             @NotBlank String role,
             @Schema(description = "Contraseña inicial: 8 a 72 caracteres, con letra y número", example = "Almacen123")
-            @NotBlank String password) {
+            @NotBlank String password,
+            @Schema(description = "Teléfono opcional", example = "+51 987 654 321") @Size(max = 20) String phone) {
     }
 
     @Schema(description = "Usuario de la organización")
-    record UserResource(UUID id, String email, String fullName, Role role, boolean active) {
+    record UserResource(UUID id, String email, String fullName, Role role, boolean active,
+            @Schema(nullable = true) String phone) {
 
         static UserResource of(UserView view) {
-            return new UserResource(view.id(), view.email(), view.fullName(), view.role(), view.active());
+            return new UserResource(view.id(), view.email(), view.fullName(), view.role(), view.active(), view.phone());
         }
+    }
+
+    @Schema(description = "Usuario del token y los permisos de su rol")
+    record ProfileResource(UserResource user,
+            @Schema(example = "[\"MANAGE_USERS\", \"MANAGE_LOCATIONS\"]") List<String> permissions) {
     }
 }

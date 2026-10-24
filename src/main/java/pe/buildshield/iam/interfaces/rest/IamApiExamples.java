@@ -24,7 +24,8 @@ final class IamApiExamples {
               "email": "rosa@andina.pe",
               "fullName": "Rosa Quispe",
               "role": "WAREHOUSE_MANAGER",
-              "active": true
+              "active": true,
+              "phone": "+51 987 654 321"
             }""";
 
     static final String USER_DEACTIVATED = """
@@ -56,4 +57,17 @@ final class IamApiExamples {
 
     private IamApiExamples() {
     }
+
+    static final String PROFILE = """
+            {
+              "user": {
+                "id": "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                "email": "ana@andina.pe",
+                "fullName": "Ana Torres",
+                "role": "ADMINISTRATOR",
+                "active": true,
+                "phone": null
+              },
+              "permissions": ["MANAGE_USERS", "MANAGE_LOCATIONS", "MANAGE_SUBSCRIPTION"]
+            }""";
 }

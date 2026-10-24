@@ -6,6 +6,7 @@ import pe.buildshield.iam.shared.error.ValidationException;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Usuario de una organización. El identificador lo asigna la persistencia al guardarlo por primera
@@ -14,6 +15,7 @@ import java.util.UUID;
 public class User {
 
     static final int MAX_FULL_NAME = 120;
+    private static final Pattern PHONE = Pattern.compile("^[+]?[0-9 ]{6,20}$");
 
     private final UUID id;
     private final UUID organizationId;
@@ -22,10 +24,11 @@ public class User {
     private Role role;
     private String passwordHash;
     private boolean active;
+    private String phone;
     private final Long version;
 
     private User(UUID id, UUID organizationId, EmailAddress email, String fullName, Role role, String passwordHash,
-            boolean active, Long version) {
+            boolean active, String phone, Long version) {
         this.id = id;
         this.organizationId = Objects.requireNonNull(organizationId, "organizationId");
         this.email = Objects.requireNonNull(email, "email");
@@ -33,20 +36,60 @@ public class User {
         this.role = Objects.requireNonNull(role, "role");
         this.passwordHash = requireHash(passwordHash);
         this.active = active;
+        this.phone = phone;
         this.version = version;
     }
 
     public static User register(UUID organizationId, EmailAddress email, String fullName, Role role, String passwordHash) {
+        return register(organizationId, email, fullName, role, passwordHash, null);
+    }
+
+    /** @param phone teléfono opcional (columna {@code users.phone} del ER) */
+    public static User register(UUID organizationId, EmailAddress email, String fullName, Role role, String passwordHash,
+            String phone) {
         if (fullName == null || fullName.isBlank() || fullName.trim().length() > MAX_FULL_NAME) {
             throw new ValidationException("INVALID_FULL_NAME", "El nombre es obligatorio (máximo 120 caracteres)",
                     List.of(new ErrorDetail("fullName", "obligatorio, máximo 120 caracteres")));
         }
-        return new User(null, organizationId, email, fullName.trim(), role, passwordHash, true, null);
+        return new User(null, organizationId, email, fullName.trim(), role, passwordHash, true, normalizePhone(phone),
+                null);
     }
 
     public static User restore(UUID id, UUID organizationId, EmailAddress email, String fullName, Role role,
             String passwordHash, boolean active, Long version) {
-        return new User(Objects.requireNonNull(id, "id"), organizationId, email, fullName, role, passwordHash, active, version);
+        return restore(id, organizationId, email, fullName, role, passwordHash, active, null, version);
+    }
+
+    public static User restore(UUID id, UUID organizationId, EmailAddress email, String fullName, Role role,
+            String passwordHash, boolean active, String phone, Long version) {
+        return new User(Objects.requireNonNull(id, "id"), organizationId, email, fullName, role, passwordHash, active,
+                phone, version);
+    }
+
+    /**
+     * Cambia el teléfono; una cadena vacía lo borra. No afecta las sesiones.
+     *
+     * @return {@code true} si cambió
+     */
+    public boolean changePhone(String newPhone) {
+        String normalized = normalizePhone(newPhone);
+        if (Objects.equals(normalized, phone)) {
+            return false;
+        }
+        phone = normalized;
+        return true;
+    }
+
+    private static String normalizePhone(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (!PHONE.matcher(trimmed).matches()) {
+            throw new ValidationException("INVALID_PHONE", "El teléfono tiene de 6 a 20 dígitos y puede empezar con +",
+                    List.of(new ErrorDetail("phone", "de 6 a 20 dígitos, opcionalmente con + y espacios")));
+        }
+        return trimmed;
     }
 
     public void changePasswordHash(String newPasswordHash) {
@@ -69,6 +112,10 @@ public class User {
             changed = true;
         }
         return changed;
+    }
+
+    public String phone() {
+        return phone;
     }
 
     public boolean canSignIn() {

@@ -307,6 +307,35 @@ class IamCommandServiceTest {
         }
 
         @Test
+        void changing_only_the_phone_saves_it_without_closing_sessions_or_publishing() {
+            UUID rosa = UUID.randomUUID();
+            when(users.findById(rosa)).thenReturn(Optional.of(stored(rosa, Role.WAREHOUSE_MANAGER, true)));
+            when(users.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            UserView view = service.updateUser(rosa, new IamCommandService.UpdateUserCommand(null, null, "987654321"));
+
+            assertThat(view.phone()).isEqualTo("987654321");
+            verify(users).save(any());
+            verify(refreshTokens, never()).revokeAllActive(any(), any());
+            verify(outbox, never()).append(anyString(), anyString(), any(), any());
+        }
+
+        @Test
+        void a_new_user_can_have_a_phone() {
+            when(users.save(any())).thenAnswer(invocation -> {
+                User user = invocation.getArgument(0);
+                return User.restore(UUID.randomUUID(), user.organizationId(), user.email(), user.fullName(),
+                        user.role(), user.passwordHash(), true, user.phone(), 0L);
+            });
+            when(encoder.encode(anyString())).thenReturn("$2a$hash");
+
+            UserView view = service.createUser(new IamCommandService.CreateUserCommand("Pedro", "pedro@andina.pe",
+                    "SITE_MANAGER", "Obra12345", "+51 999 888 777"));
+
+            assertThat(view.phone()).isEqualTo("+51 999 888 777");
+        }
+
+        @Test
         void changing_the_role_revokes_sessions_and_nothing_changes_without_differences() {
             UUID rosa = UUID.randomUUID();
             when(users.findById(rosa)).thenReturn(Optional.of(stored(rosa, Role.WAREHOUSE_MANAGER, true)));
